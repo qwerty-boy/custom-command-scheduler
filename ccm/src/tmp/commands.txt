@@ -1,0 +1,4 @@
+*/1 date && echo "Amex' motto is 'Don't live life without it!'"
+*/2 date && echo "Amex was founded in 1850."
+30 17 30 4 2025 date && echo "At Amex, We Do What's Right."
+30 18 1 5 2025 date && echo "At Amex, We Do What's Right."
