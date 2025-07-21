@@ -21,41 +21,49 @@ public class Main {
         try (Scanner scanner = new Scanner(new FileReader(file))) {
             while (scanner.hasNext()) {
                 String command = scanner.nextLine();
-                if (command.startsWith("*")) {
-                    String[] parts = command.split("\\*");
-                    if (parts.length > 1) {
-                        String[] timeToExecute = parts[1].split(" ");
+                try {
+                    if (command.startsWith("*")) {
+                        String[] parts = command.split("\\*");
+                        if (parts.length > 1) {
+                            String[] timeToExecute = parts[1].split(" ");
+                            byte[] dataBytes = command.split("&&")[1].replace("echo", "").getBytes();
+                            Runnable recurringExecutable = () -> {
+                                try {
+                                    fileOutputStream.write(dataBytes);
+                                    fileOutputStream.write("\n".getBytes());
+                                } catch (IOException exception) {
+                                    throw new RuntimeException(exception);
+                                }
+                            };
+                            LocalDateTime localDateTime = LocalDateTime.now().plusMinutes(Integer.parseInt(timeToExecute[0].replace("/", "")));
+                            scheduler.scheduleWithFixedDelay(() -> executorService.execute(recurringExecutable), 0, localDateTime.getMinute(), TimeUnit.SECONDS);
+                        } else {
+                            System.out.println("Invalid command format.");
+                        }
+                    } else if (!command.isEmpty()) {
+                        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+                        String[] fixedTimePart = command.split("&&");
+                        String[] cronExpressionParts = fixedTimePart[0].split(" ");
                         byte[] dataBytes = command.split("&&")[1].replace("echo", "").getBytes();
-                        Runnable recurringExecutable = () -> {
+                        Runnable oneTimeExecutable = () -> {
                             try {
                                 fileOutputStream.write(dataBytes);
                                 fileOutputStream.write("\n".getBytes());
-                            } catch (IOException e) {
-                                throw new RuntimeException(e);
+                            } catch (IOException exception) {
+                                throw new RuntimeException(exception);
                             }
                         };
-                        LocalDateTime localDateTime = LocalDateTime.now().plusMinutes(Integer.parseInt(timeToExecute[0].replace("/", "")));
-                        scheduler.scheduleWithFixedDelay(() -> executorService.execute(recurringExecutable), 0, localDateTime.getMinute(), TimeUnit.SECONDS);
+                        String month = cronExpressionParts[3].length() > 1 ? cronExpressionParts[3] : "0" + cronExpressionParts[3];
+                        String day = cronExpressionParts[2].length() > 1 ? cronExpressionParts[2] : "0" + cronExpressionParts[2];
+                        String hour = cronExpressionParts[1].length() > 1 ? cronExpressionParts[1] : "0" + cronExpressionParts[1];
+                        String min = cronExpressionParts[0].length() > 1 ? cronExpressionParts[0] : "0" + cronExpressionParts[0];
+                        LocalDateTime date = LocalDateTime.parse(cronExpressionParts[4] + "-" + month + "-" + day + " " + hour + ":" + min, formatter);
+                        scheduler.schedule(() -> executorService.execute(oneTimeExecutable), date.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli() - System.currentTimeMillis(), TimeUnit.MILLISECONDS);
                     } else {
                         System.out.println("Invalid command format.");
                     }
-                } else {
-                    DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
-                    String[] fixedTimePart = command.split("&&");
-                    String[] cronExpressionParts = fixedTimePart[0].split(" ");
-                    byte[] dataBytes = command.split("&&")[1].replace("echo", "").getBytes();
-                    Runnable oneTimeExecutable = () -> {
-                        try {
-                            fileOutputStream.write(dataBytes);
-                            fileOutputStream.write("\n".getBytes());
-                        } catch (IOException e) {
-                            throw new RuntimeException(e);
-                        }
-                    };
-                    String month = cronExpressionParts[3].length() > 1 ? cronExpressionParts[3] : "0" + cronExpressionParts[3];
-                    String day = cronExpressionParts[2].length() > 1 ? cronExpressionParts[2] : "0" + cronExpressionParts[2];
-                    LocalDateTime date = LocalDateTime.parse(cronExpressionParts[4] + "-" + month + "-" + day + " " + cronExpressionParts[1] + ":" + cronExpressionParts[0], formatter);
-                    scheduler.schedule(() -> executorService.execute(oneTimeExecutable), date.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli() - System.currentTimeMillis(), TimeUnit.MILLISECONDS);
+                } catch (Exception exception){
+                    System.out.println("Invalid command format."+ exception.getMessage());
                 }
             }
         } finally {
@@ -68,7 +76,7 @@ public class Main {
                 if (!executorService.awaitTermination(60, TimeUnit.SECONDS)) {
                     executorService.shutdownNow();
                 }
-            } catch (InterruptedException e) {
+            } catch (InterruptedException exception) {
                 scheduler.shutdownNow();
                 executorService.shutdownNow();
                 Thread.currentThread().interrupt();
